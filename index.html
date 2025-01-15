@@ -1,0 +1,328 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Block Catcher Game</title>
+<style>
+body {
+margin: 0;
+font-family: Arial, sans-serif;
+background-color: black;
+color: white;
+}
+header {
+text-align: center;
+padding: 20px;
+background-color: #111;
+}
+h1 {
+margin: 0;
+}
+main {
+display: flex;
+flex-direction: column;
+align-items: center;
+padding: 20px;
+}
+canvas {
+display: block;
+background: #000;
+border: 2px solid #fff;
+margin-top: 20px;
+}
+.buttons {
+margin-top: 10px;
+}
+.buttons button, .buttons select {
+padding: 10px 20px;
+font-size: 16px;
+margin: 0 5px;
+cursor: pointer;
+border: 2px solid gold;
+border-radius: 5px;
+background-color: black;
+color: white;
+transition: background-color 0.3s, color 0.3s;
+}
+.buttons button:hover, .buttons select:hover {
+background-color: gold;
+color: black;
+}
+.shop {
+margin-top: 20px;
+text-align: center;
+background-color: #222;
+padding: 15px;
+border-radius: 10px;
+}
+.shop button {
+padding: 10px;
+font-size: 16px;
+margin: 5px;
+cursor: pointer;
+border: 2px solid gold;
+border-radius: 5px;
+background-color: black;
+color: white;
+transition: background-color 0.3s, color 0.3s;
+}
+.shop button:hover {
+background-color: gold;
+color: black;
+}
+</style>
+</head>
+<body>
+<header>
+<h1>Block Catcher</h1>
+<p>Use arrow keys to move and catch the falling red blocks!</p>
+</header>
+<main>
+<canvas id="gameCanvas"></canvas>
+<div class="buttons">
+<button id="startButton">Start Game</button>
+<button id="pauseButton">Pause Game</button>
+<button id="stopButton">Stop Game</button>
+<select id="colorPicker">
+<option value="lime">Green</option>
+<option value="blue">Blue</option>
+<option value="red">Red</option>
+<option value="yellow">Yellow</option>
+<option value="purple">Purple</option>
+</select>
+</div>
+<div class="shop">
+<h2>Shop</h2>
+<button id="buyAutoCatch">Buy Auto-Catch (50 points)</button>
+<button id="buySpeedBoost">Buy Speed-Boost (30 points)</button>
+</div>
+</main>
+<script>
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+const startButton = document.getElementById('startButton');
+const pauseButton = document.getElementById('pauseButton');
+const stopButton = document.getElementById('stopButton');
+const colorPicker = document.getElementById('colorPicker');
+const buyAutoCatch = document.getElementById('buyAutoCatch');
+const buySpeedBoost = document.getElementById('buySpeedBoost');
+
+canvas.width = 800;
+canvas.height = 600;
+
+const player = {
+x: canvas.width / 2 - 25,
+y: canvas.height - 75,
+width: 50,
+height: 50,
+color: 'lime',
+speed: 5,
+dx: 0
+};
+
+let fallingBlock = null;
+let powerUp = null;
+let isAutoCatchActive = false;
+let isSpeedBoostActive = false;
+let autoCatchTimeout = null;
+let speedBoostTimeout = null;
+let isPaused = false;
+
+function createFallingBlock() {
+return {
+x: Math.random() * (canvas.width - 50),
+y: -50,
+width: 50,
+height: 50,
+color: 'red',
+speed: 3 + Math.random() * 2
+};
+}
+
+function createPowerUp() {
+return {
+x: Math.random() * (canvas.width - 30),
+y: -30,
+width: 30,
+height: 30,
+color: 'gold',
+speed: 2,
+type: Math.random() > 0.5 ? 'auto-catch' : 'speed-boost'
+};
+}
+
+let score = 0;
+let gameOver = false;
+let animationFrameId = null;
+
+function resetGame() {
+player.x = canvas.width / 2 - 25;
+player.dx = 0;
+player.speed = 5;
+fallingBlock = createFallingBlock();
+powerUp = createPowerUp();
+score = 0;
+gameOver = false;
+isAutoCatchActive = false;
+isSpeedBoostActive = false;
+clearTimeout(autoCatchTimeout);
+clearTimeout(speedBoostTimeout);
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+}
+
+function drawRect(rect) {
+ctx.fillStyle = rect.color;
+ctx.fillRect(rect.x, rect.y, rect.width, rect.height);
+}
+
+function detectCollision(a, b) {
+return (
+a.x < b.x + b.width &&
+a.x + a.width > b.x &&
+a.y < b.y + b.height &&
+a.y + a.height > b.y
+);
+}
+
+function update() {
+if (gameOver || isPaused) return;
+
+// Clear canvas
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+// Move player
+player.x += player.dx;
+
+// Prevent player from leaving canvas
+if (player.x < 0) player.x = 0;
+if (player.x > canvas.width - player.width) player.x = canvas.width - player.width;
+
+// Move falling block
+if (fallingBlock) {
+fallingBlock.y += fallingBlock.speed;
+
+// Check if block reaches bottom
+if (fallingBlock.y > canvas.height) {
+gameOver = true;
+cancelAnimationFrame(animationFrameId);
+alert(`Game Over! Your score: ${score}`);
+return;
+}
+
+// Check for collision with player
+if (detectCollision(player, fallingBlock)) {
+score += 10;
+fallingBlock = createFallingBlock();
+}
+}
+
+// Move power-up
+if (powerUp) {
+powerUp.y += powerUp.speed;
+
+// Check if power-up reaches bottom
+if (powerUp.y > canvas.height) {
+powerUp = createPowerUp();
+}
+
+// Check for collision with player
+if (detectCollision(player, powerUp)) {
+activatePowerUp(powerUp.type);
+powerUp = createPowerUp();
+}
+}
+
+// Draw player, falling block, and power-up
+drawRect(player);
+if (fallingBlock) drawRect(fallingBlock);
+if (powerUp) drawRect(powerUp);
+
+// Display score
+ctx.fillStyle = 'white';
+ctx.font = '20px Arial';
+ctx.fillText(`Score: ${score}`, 10, 20);
+
+animationFrameId = requestAnimationFrame(update);
+}
+
+function activatePowerUp(type) {
+if (type === 'auto-catch') {
+isAutoCatchActive = true;
+autoCatchTimeout = setTimeout(() => {
+isAutoCatchActive = false;
+}, 5000);
+} else if (type === 'speed-boost') {
+isSpeedBoostActive = true;
+player.speed = 10;
+speedBoostTimeout = setTimeout(() => {
+isSpeedBoostActive = false;
+player.speed = 5;
+}, 10000);
+}
+}
+
+document.addEventListener('keydown', (e) => {
+if (gameOver) return;
+
+if (e.key === 'ArrowLeft') {
+player.dx = -player.speed;
+}
+if (e.key === 'ArrowRight') {
+player.dx = player.speed;
+}
+});
+
+document.addEventListener('keyup', (e) => {
+if (e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+player.dx = 0;
+}
+});
+
+colorPicker.addEventListener('change', (e) => {
+player.color = e.target.value;
+});
+
+startButton.addEventListener('click', () => {
+resetGame();
+if (!animationFrameId) {
+update();
+}
+});
+
+pauseButton.addEventListener('click', () => {
+isPaused = !isPaused;
+if (!isPaused) {
+update();
+}
+});
+
+stopButton.addEventListener('click', () => {
+cancelAnimationFrame(animationFrameId);
+animationFrameId = null;
+ctx.clearRect(0, 0, canvas.width, canvas.height);
+alert(`Game stopped! Final score: ${score}`);
+});
+
+buyAutoCatch.addEventListener('click', () => {
+if (score >= 50) {
+score -= 50;
+activatePowerUp('auto-catch');
+alert('Auto-Catch activated!');
+} else {
+alert('Not enough points!');
+}
+});
+
+buySpeedBoost.addEventListener('click', () => {
+if (score >= 30) {
+score -= 30;
+activatePowerUp('speed-boost');
+alert('Speed-Boost activated!');
+} else {
+alert('Not enough points!');
+}
+});
+</script>
+</body>
+</html>
