@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Block Catcher</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f9;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+        }
+        header {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        header h1 {
+            font-size: 2.5rem;
+            margin: 0;
+        }
+        header p {
+            font-size: 1.2rem;
+            color: #555;
+        }
+        canvas {
+            border: 2px solid #000;
+            background-color: #fff;
+            display: block;
+        }
+        .controls {
+            margin-top: 20px;
+        }
+        .controls button {
+            padding: 10px 20px;
+            font-size: 1rem;
+            margin: 5px;
+            cursor: pointer;
+            border: 2px solid gold;
+            border-radius: 5px;
+            background: white;
+            color: black;
+            transition: background-color 0.3s, color 0.3s;
+        }
+        .controls button:hover {
+            background-color: gold;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <header>
+        <h1>Block Catcher</h1>
+        <p>Gebruik de pijltjestoetsen om de groene blok te bewegen en de rode blokken te vangen voor punten. Gele blokken zijn power-ups die je tijdelijk helpen!</p>
+    </header>
+    <canvas id="gameCanvas" width="500" height="400"></canvas>
+    <div class="controls">
+        <button id="startButton">Start Game</button>
+        <button id="pauseButton">Pause Game</button>
+        <button id="stopButton">Stop Game</button>
+    </div>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+
+        const player = {
+            x: 225,
+            y: 350,
+            width: 50,
+            height: 50,
+            color: 'green',
+            speed: 5
+        };
+
+        const keys = {};
+        let gameInterval;
+        let isPaused = false;
+
+        const fallingBlocks = [];
+        let score = 0;
+        let powerUpActive = false;
+        let powerUpTimer = 0;
+
+        function drawPlayer() {
+            ctx.fillStyle = player.color;
+            ctx.fillRect(player.x, player.y, player.width, player.height);
+        }
+
+        function updatePlayer() {
+            if (keys['ArrowLeft'] && player.x > 0) player.x -= player.speed;
+            if (keys['ArrowRight'] && player.x + player.width < canvas.width) player.x += player.speed;
+            if (keys['ArrowUp'] && player.y > 0) player.y -= player.speed;
+            if (keys['ArrowDown'] && player.y + player.height < canvas.height) player.y += player.speed;
+        }
+
+        function createBlock() {
+            const size = 20;
+            const x = Math.random() * (canvas.width - size);
+            const type = Math.random() < 0.8 ? 'red' : 'yellow';
+            fallingBlocks.push({ x, y: 0, width: size, height: size, type });
+        }
+
+        function drawBlocks() {
+            fallingBlocks.forEach(block => {
+                ctx.fillStyle = block.type === 'red' ? 'red' : 'yellow';
+                ctx.fillRect(block.x, block.y, block.width, block.height);
+            });
+        }
+
+        function updateBlocks() {
+            fallingBlocks.forEach(block => {
+                block.y += 2;
+            });
+
+            for (let i = fallingBlocks.length - 1; i >= 0; i--) {
+                if (fallingBlocks[i].y > canvas.height) {
+                    fallingBlocks.splice(i, 1);
+                }
+            }
+        }
+
+        function detectCollision() {
+            for (let i = fallingBlocks.length - 1; i >= 0; i--) {
+                const block = fallingBlocks[i];
+                if (
+                    player.x < block.x + block.width &&
+                    player.x + player.width > block.x &&
+                    player.y < block.y + block.height &&
+                    player.y + player.height > block.y
+                ) {
+                    if (block.type === 'red') {
+                        score += 10;
+                    } else if (block.type === 'yellow') {
+                        activatePowerUp();
+                    }
+                    fallingBlocks.splice(i, 1);
+                }
+            }
+        }
+
+        function activatePowerUp() {
+            powerUpActive = true;
+            player.color = 'blue';
+            player.speed = 10;
+            powerUpTimer = 300;
+        }
+
+        function handlePowerUp() {
+            if (powerUpActive) {
+                powerUpTimer--;
+                if (powerUpTimer <= 0) {
+                    powerUpActive = false;
+                    player.color = 'green';
+                    player.speed = 5;
+                }
+            }
+        }
+
+        function drawScore() {
+            ctx.fillStyle = 'black';
+            ctx.font = '20px Arial';
+            ctx.fillText(`Score: ${score}`, 10, 20);
+        }
+
+        function gameLoop() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawPlayer();
+            drawBlocks();
+            drawScore();
+            updatePlayer();
+            updateBlocks();
+            detectCollision();
+            handlePowerUp();
+        }
+
+        document.addEventListener('keydown', e => keys[e.key] = true);
+        document.addEventListener('keyup', e => keys[e.key] = false);
+
+        document.getElementById('startButton').addEventListener('click', () => {
+            if (gameInterval) clearInterval(gameInterval);
+            gameInterval = setInterval(() => {
+                if (!isPaused) gameLoop();
+            }, 1000 / 60);
+        });
+
+        document.getElementById('pauseButton').addEventListener('click', () => {
+            isPaused = !isPaused;
+        });
+
+        document.getElementById('stopButton').addEventListener('click', () => {
+            clearInterval(gameInterval);
+            gameInterval = null;
+            score = 0;
+            fallingBlocks.length = 0;
+            player.x = 225;
+            player.y = 350;
+            player.color = 'green';
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            drawScore();
+        });
+
+        setInterval(createBlock, 1000);
+    </script>
+</body>
+</html>
